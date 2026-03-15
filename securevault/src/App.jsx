@@ -63,6 +63,7 @@ export default function App() {
   };
 
   const refreshChain = () => {
+    console.log('refreshChain called in App.jsx');
     setChainBlocks(loadChain().length);
     setThreatStats(getThreatStats());
   };

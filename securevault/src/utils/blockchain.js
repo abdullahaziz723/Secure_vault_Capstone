@@ -21,6 +21,20 @@
 const CHAIN_KEY  = "sv_chain_v1";
 const DIFFICULTY = 2; // leading zeros required in block hash
 
+// ─── Transaction Metadata ──────────────────────────────────────────
+
+/**
+ * Metadata for each transaction type, used for UI display.
+ */
+export const TX_META = {
+  CHAIN_INITIALIZED: { icon: "⛓", label: "Chain Initialized", color: "var(--c1)" },
+  NOTE_CREATED:      { icon: "➕", label: "Note Created",      color: "var(--c5)" },
+  NOTE_VIEWED:       { icon: "👁", label: "Note Viewed",       color: "var(--c2)" },
+  NOTE_DELETED:      { icon: "🗑", label: "Note Deleted",      color: "var(--c3)" },
+  NOTE_EXPIRED:      { icon: "⏰", label: "Note Expired",      color: "var(--c4)" },
+  AUTH_FAILED:       { icon: "⚠️", label: "Auth Failed",       color: "var(--c4)" },
+};
+
 // ─── Hashing ─────────────────────────────────────────────────────
 
 /**
@@ -125,7 +139,18 @@ async function mineBlock(index, timestamp, transactions, previousHash, merkleRoo
  */
 export async function computeBlockHash(block) {
   const { index, timestamp, transactions, previousHash, merkleRoot, nonce } = block;
-  return sha256(JSON.stringify({ index, timestamp, transactions, previousHash, merkleRoot, nonce }));
+
+  // Handle legacy blocks that might not have merkleRoot
+  const dataToHash = {
+    index,
+    timestamp,
+    transactions,
+    previousHash,
+    nonce,
+    ...(merkleRoot && { merkleRoot }) // Only include if it exists
+  };
+
+  return sha256(JSON.stringify(dataToHash));
 }
 
 // ─── Genesis Block ────────────────────────────────────────────────
@@ -247,8 +272,15 @@ export async function addBlock(transactions) {
  * @returns {Promise<Block>}
  */
 export async function recordTransaction(type, noteId, description, metadata = {}) {
+  console.log(`Recording transaction: ${type} for note ${noteId}`);
   const dataHash = await sha256(JSON.stringify({ noteId, ...metadata, ts: Date.now() }));
-  return addBlock([{ type, noteId, description, dataHash }]);
+  const block = await addBlock([{ type, noteId, description, dataHash }]);
+
+  // Dispatch custom event to notify UI components of chain updates
+  console.log('Dispatching blockchain-updated event');
+  window.dispatchEvent(new CustomEvent('blockchain-updated'));
+
+  return block;
 }
 
 /**
@@ -261,37 +293,52 @@ export async function verifyChain() {
   const chain = loadChain();
   const errors = [];
 
+  console.log(`Verifying chain with ${chain.length} blocks`);
+
   for (let i = 0; i < chain.length; i++) {
     const block = chain[i];
+    console.log(`Verifying block ${i}:`, block);
 
-    // 1. Verify block hash
-    const recomputed = await computeBlockHash(block);
-    if (recomputed !== block.hash) {
-      errors.push(`Block ${i}: Hash mismatch — expected ${block.hash.slice(0, 12)}... got ${recomputed.slice(0, 12)}...`);
-    }
+    try {
+      // 1. Verify block hash
+      const recomputed = await computeBlockHash(block);
+      console.log(`Block ${i} hash check: stored=${block.hash}, computed=${recomputed}`);
+      if (recomputed !== block.hash) {
+        errors.push(`Block ${i}: Hash mismatch — expected ${block.hash.slice(0, 12)}... got ${recomputed.slice(0, 12)}...`);
+      }
 
-    // 2. Verify Proof-of-Work
-    if (!block.hash.startsWith("0".repeat(DIFFICULTY))) {
-      errors.push(`Block ${i}: Proof-of-Work invalid — hash does not meet difficulty ${DIFFICULTY}`);
-    }
+      // 2. Verify Proof-of-Work
+      if (!block.hash.startsWith("0".repeat(DIFFICULTY))) {
+        errors.push(`Block ${i}: Proof-of-Work invalid — hash does not meet difficulty ${DIFFICULTY}`);
+      }
 
-    // 3. Verify chain linkage (skip genesis)
-    if (i > 0 && block.previousHash !== chain[i - 1].hash) {
-      errors.push(`Block ${i}: Previous hash mismatch — chain is broken at this block`);
-    }
+      // 3. Verify chain linkage (skip genesis)
+      if (i > 0 && block.previousHash !== chain[i - 1].hash) {
+        errors.push(`Block ${i}: Previous hash mismatch — chain is broken at this block`);
+      }
 
-    // 4. Verify Merkle root
-    const merkle = await computeMerkleRoot(block.transactions);
-    if (merkle !== block.merkleRoot) {
-      errors.push(`Block ${i}: Merkle root mismatch — transaction data may have been tampered`);
+      // 4. Verify Merkle root (only for blocks that have it)
+      if (block.merkleRoot) {
+        const merkle = await computeMerkleRoot(block.transactions);
+        console.log(`Block ${i} merkle check: stored=${block.merkleRoot}, computed=${merkle}`);
+        if (merkle !== block.merkleRoot) {
+          errors.push(`Block ${i}: Merkle root mismatch — transaction data may have been tampered`);
+        }
+      }
+    } catch (error) {
+      console.error(`Error verifying block ${i}:`, error);
+      errors.push(`Block ${i}: Verification failed — ${error.message}`);
     }
   }
 
-  return {
+  const result = {
     valid: errors.length === 0,
     errors,
     checkedBlocks: chain.length,
   };
+
+  console.log('Verification result:', result);
+  return result;
 }
 
 /**

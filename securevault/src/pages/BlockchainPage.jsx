@@ -245,7 +245,20 @@ export default function BlockchainPage() {
     setStats(getChainStats());
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  // Listen for blockchain updates from other pages
+  useEffect(() => {
+    const handleBlockchainUpdate = () => {
+      console.log('Blockchain update event received, refreshing...');
+      refresh();
+    };
+
+    window.addEventListener('blockchain-updated', handleBlockchainUpdate);
+    return () => window.removeEventListener('blockchain-updated', handleBlockchainUpdate);
+  }, [refresh]);
 
   // ── Chain Verification ─────────────────────────────────────────
   const handleVerify = async () => {
@@ -450,7 +463,7 @@ export default function BlockchainPage() {
                     { label: "Blocks to verify", val: chain.length },
                     { label: "Difficulty target", val: `${"0".repeat(2)}...` },
                     { label: "Algorithm", val: "SHA-256" },
-                  ].map(([label, val]) => (
+                  ].map(({ label, val }) => (
                     <div key={label}>
                       <div style={{ color: "var(--muted)", fontSize: ".65rem", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: ".2rem" }}>{label}</div>
                       <div style={{ color: "var(--c1)" }}>{val}</div>

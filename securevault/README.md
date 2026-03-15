@@ -34,7 +34,7 @@ securevault/
     │   ├── Sidebar.jsx            # Navigation sidebar
     │   ├── Topbar.jsx             # Sticky top bar
     │   ├── AuditEntry.jsx         # Shared audit log row
-    │   └── QRCode.jsx             # Canvas-based QR code generator
+    │   └── QRCode.jsx             # Scannable QR code generator (qrcode.react)
     │
     └── pages/
         ├── DashboardPage.jsx      # Stats, activity chart, quick actions
