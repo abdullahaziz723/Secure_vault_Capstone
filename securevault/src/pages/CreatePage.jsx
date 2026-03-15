@@ -307,11 +307,11 @@ export default function CreatePage({ refreshNotes, refreshChain }) {
                 <div className="field">
                   <label>Auto-expire after</label>
                   <select value={expiry} onChange={(e) => setExpiry(e.target.value)}>
+                    <option value="1m">1 minutes</option>
                     <option value="30m">30 minutes</option>
-                    <option value="1h">1 hour</option>
+                    <option value="1h">1 hours</option>
                     <option value="6h">6 hours</option>
                     <option value="24h">24 hours</option>
-                    <option value="3d">3 days</option>
                     <option value="7d">7 days</option>
                     <option value="never">Never expire</option>
                   </select>
