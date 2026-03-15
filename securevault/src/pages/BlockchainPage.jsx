@@ -245,7 +245,20 @@ export default function BlockchainPage() {
     setStats(getChainStats());
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  // Listen for blockchain updates from other pages
+  useEffect(() => {
+    const handleBlockchainUpdate = () => {
+      console.log('Blockchain update event received, refreshing...');
+      refresh();
+    };
+
+    window.addEventListener('blockchain-updated', handleBlockchainUpdate);
+    return () => window.removeEventListener('blockchain-updated', handleBlockchainUpdate);
+  }, [refresh]);
 
   // ── Chain Verification ─────────────────────────────────────────
   const handleVerify = async () => {

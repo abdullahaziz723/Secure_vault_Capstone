@@ -272,8 +272,15 @@ export async function addBlock(transactions) {
  * @returns {Promise<Block>}
  */
 export async function recordTransaction(type, noteId, description, metadata = {}) {
+  console.log(`Recording transaction: ${type} for note ${noteId}`);
   const dataHash = await sha256(JSON.stringify({ noteId, ...metadata, ts: Date.now() }));
-  return addBlock([{ type, noteId, description, dataHash }]);
+  const block = await addBlock([{ type, noteId, description, dataHash }]);
+
+  // Dispatch custom event to notify UI components of chain updates
+  console.log('Dispatching blockchain-updated event');
+  window.dispatchEvent(new CustomEvent('blockchain-updated'));
+
+  return block;
 }
 
 /**
