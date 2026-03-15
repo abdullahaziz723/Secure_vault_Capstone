@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Tracking Particle Magic</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+        canvas { display: block; }
+        #info {
+            position: absolute; top: 10px; left: 10px; color: white;
+            pointer-events: none; text-shadow: 1px 1px 2px black;
+        }
+        #video-container {
+            position: absolute; bottom: 10px; right: 10px;
+            width: 160px; height: 120px; border: 2px solid #444; border-radius: 8px;
+            overflow: hidden; transform: scaleX(-1); /* Mirror video */
+        }
+        video { width: 100%; height: 100%; object-fit: cover; }
+    </style>
+</head>
+<body>
+
+    <div id="info">
+        <h2>Hand Gesture Particles</h2>
+        <p>🖐️ Open Hand: Expand Particles | ✊ Fist: Collapse / Change Shape</p>
+        <p id="status">Loading AI Models...</p>
+    </div>
+    <div id="video-container">
+        <video id="webcam" autoplay playsinline></video>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/23.1.1/tween.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+    <script>
+        // --- CONFIGURATION ---
+        const PARTICLE_COUNT = 5000;
+        let currentShape = 0;
+        const shapes = ['sphere', 'heart', 'saturn', 'star'];
+        
+        // --- THREE.JS SETUP ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        camera.position.z = 5;
+
+        // --- PARTICLE SYSTEM ---
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(PARTICLE_COUNT * 3);
+        const colors = new Float32Array(PARTICLE_COUNT * 3);
+        
+        for (let i = 0; i < PARTICLE_COUNT * 3; i++) {
+            positions[i] = (Math.random() - 0.5) * 10;
+            colors[i] = Math.random();
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const material = new THREE.PointsMaterial({
+            size: 0.05,
+            vertexColors: true,
+            transparent: true,
+            blending: THREE.AdditiveBlending
+        });
+
+        const particleSystem = new THREE.Points(geometry, material);
+        scene.add(particleSystem);
+
+        // --- SHAPE GENERATORS ---
+        function getShapePositions(shapeName) {
+            const pos = new Float32Array(PARTICLE_COUNT * 3);
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                let x, y, z;
+                const i3 = i * 3;
+                
+                if (shapeName === 'sphere') {
+                    const u = Math.random();
+                    const v = Math.random();
+                    const theta = 2 * Math.PI * u;
+                    const phi = Math.acos(2 * v - 1);
+                    x = 2 * Math.sin(phi) * Math.cos(theta);
+                    y = 2 * Math.sin(phi) * Math.sin(theta);
+                    z = 2 * Math.cos(phi);
+                } else if (shapeName === 'heart') {
+                    const t = Math.random() * Math.PI * 2;
+                    x = 0.15 * (16 * Math.pow(Math.sin(t), 3));
+                    y = 0.15 * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+                    z = (Math.random() - 0.5) * 0.5;
+                } else if (shapeName === 'saturn') {
+                    if (i < PARTICLE_COUNT * 0.6) { // Planet
+                        const theta = Math.random() * Math.PI * 2;
+                        const phi = Math.acos(2 * Math.random() - 1);
+                        x = 1.5 * Math.sin(phi) * Math.cos(theta);
+                        y = 1.5 * Math.sin(phi) * Math.sin(theta);
+                        z = 1.5 * Math.cos(phi);
+                    } else { // Rings
+                        const r = 2.2 + Math.random() * 0.8;
+                        const theta = Math.random() * Math.PI * 2;
+                        x = r * Math.cos(theta);
+                        y = r * Math.sin(theta) * 0.2; // Flat rings
+                        z = r * Math.sin(theta);
+                    }
+                } else { // Star/Explosion
+                    const r = Math.random() * 3;
+                    const theta = Math.random() * Math.PI * 2;
+                    x = r * Math.cos(theta) * (Math.random() > 0.5 ? 1 : 0.2);
+                    y = r * Math.sin(theta);
+                    z = (Math.random() - 0.5) * 5;
+                }
+                pos[i3] = x; pos[i3+1] = y; pos[i3+2] = z;
+            }
+            return pos;
+        }
+
+        function transitionToShape(shapeName) {
+            const newPositions = getShapePositions(shapeName);
+            const currentPos = geometry.attributes.position.array;
+            
+            new TWEEN.Tween(currentPos)
+                .to(newPositions, 1000)
+                .easing(TWEEN.Easing.Exponential.InOut)
+                .onUpdate(() => geometry.attributes.position.needsUpdate = true)
+                .start();
+
+            // Randomize colors on transition
+            const colors = geometry.attributes.color.array;
+            const r = Math.random(), g = Math.random(), b = Math.random();
+            for(let i=0; i<colors.length; i+=3) {
+                colors[i] = r; colors[i+1] = g; colors[i+2] = b;
+            }
+            geometry.attributes.color.needsUpdate = true;
+        }
+
+        // --- HAND TRACKING LOGIC ---
+        const videoElement = document.getElementById('webcam');
+        const statusText = document.getElementById('status');
+        let lastFistState = false;
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults((results) => {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const hand = results.multiHandLandmarks[0];
+                
+                // Track Index Finger for Position
+                const indexTip = hand[8];
+                particleSystem.position.x = (indexTip.x - 0.5) * -10; // Inverted for mirror
+                particleSystem.position.y = (indexTip.y - 0.5) * -10;
+
+                // Detect Gesture (Fist vs Open Hand)
+                // Using distance between thumb and pinky as a proxy for "openness"
+                const dist = Math.hypot(hand[4].x - hand[20].x, hand[4].y - hand[20].y);
+                const isFist = dist < 0.1;
+
+                if (isFist && !lastFistState) {
+                    currentShape = (currentShape + 1) % shapes.length;
+                    transitionToShape(shapes[currentShape]);
+                    statusText.innerText = `Shape: ${shapes[currentShape].toUpperCase()}`;
+                }
+                
+                // Expansion Effect based on hand openness
+                const targetScale = isFist ? 0.5 : 1.5;
+                particleSystem.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
+                
+                lastFistState = isFist;
+            }
+        });
+
+        const cameraPipe = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 640,
+            height: 480
+        });
+        cameraPipe.start();
+
+        // --- RENDER LOOP ---
+        function animate(time) {
+            requestAnimationFrame(animate);
+            TWEEN.update(time);
+            particleSystem.rotation.y += 0.005;
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+        statusText.innerText = "Camera Active - Move your hand!";
+    </script>
+</body>
+</html>
