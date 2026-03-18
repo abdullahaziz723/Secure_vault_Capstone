@@ -21,7 +21,7 @@
 //   HIGH   (65–84)  — lock note, require re-auth
 //   CRITICAL(85–100)— immediate lock + blockchain alert
 // ═══════════════════════════════════════════════════════════════════
-
+const temp ="temp"
 const THREAT_KEY      = "sv_threats_v1";
 const BEHAVIOR_KEY    = "sv_behavior_v1";
 const SESSIONS_KEY    = "sv_sessions_v1";

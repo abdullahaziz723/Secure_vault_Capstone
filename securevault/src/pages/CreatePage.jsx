@@ -1,7 +1,4 @@
-// ═══════════════════════════════════════════════════════════════════
-// CreatePage.jsx — 3-Tab Note Creation Wizard
-// Tab 1: Compose  |  Tab 2: Options  |  Tab 3: Preview
-// ═══════════════════════════════════════════════════════════════════
+
 
 import { useState } from "react";
 import QRCode from "../components/QRCode";
